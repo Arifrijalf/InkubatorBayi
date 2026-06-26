@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Inkubator Bayi — Preview</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      :root {
+        --bg: #0f172a;
+        --card: #1e293b;
+        --border: #334155;
+        --text: #e2e8f0;
+        --text2: #94a3b8;
+        --accent: #38bdf8;
+        --green: #22c55e;
+        --red: #ef4444;
+        --orange: #f97316;
+        --purple: #a78bfa;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        padding: 16px;
+      }
+      .header {
+        text-align: center;
+        padding: 20px 0;
+      }
+      .header h1 {
+        font-size: 1.8rem;
+        background: linear-gradient(135deg, var(--accent), var(--purple));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 4px;
+      }
+      .header p {
+        color: var(--text2);
+        font-size: 0.85rem;
+      }
+      .alarm-banner {
+        display: none;
+        background: var(--red);
+        color: #fff;
+        text-align: center;
+        padding: 14px;
+        border-radius: 12px;
+        margin-bottom: 16px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        letter-spacing: 2px;
+      }
+      .alarm-banner.show {
+        display: block;
+        animation: blink 1s infinite;
+      }
+      .status-bar {
+        display: flex;
+        justify-content: center;
+        gap: 24px;
+        padding: 12px;
+        background: var(--card);
+        border-radius: 12px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+      }
+      .status-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8rem;
+        color: var(--text2);
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .dot-green {
+        background: var(--green);
+      }
+      .dot-red {
+        background: var(--red);
+      }
+      .dot-orange {
+        background: var(--orange);
+      }
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
+        }
+      }
+      .alarm-on {
+        animation: blink 0.5s infinite;
+        color: var(--red) !important;
+        font-weight: 600;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 16px;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px;
+        backdrop-filter: blur(10px);
+      }
+      .card h3 {
+        font-size: 0.9rem;
+        color: var(--text2);
+        margin-bottom: 16px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 500;
+      }
+      .temp-display {
+        text-align: center;
+        padding: 20px 0;
+      }
+      .temp-big {
+        font-size: 4rem;
+        font-weight: 700;
+        line-height: 1;
+      }
+      .temp-unit {
+        font-size: 1.5rem;
+        color: var(--text2);
+        margin-left: 4px;
+      }
+      .temp-setpoint {
+        font-size: 1rem;
+        color: var(--accent);
+        margin-top: 8px;
+      }
+      .pid-output {
+        font-size: 3rem;
+        font-weight: 700;
+        text-align: center;
+        padding: 16px 0;
+      }
+      .pid-label {
+        font-size: 0.8rem;
+        color: var(--text2);
+        margin-top: 4px;
+      }
+      .gauge-container {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+      }
+      .gauge {
+        text-align: center;
+        flex: 1;
+      }
+      .gauge-label {
+        font-size: 0.8rem;
+        color: var(--text2);
+        margin-bottom: 4px;
+      }
+      .gauge-value {
+        font-size: 1.8rem;
+        font-weight: 600;
+      }
+      .gauge-bar {
+        height: 6px;
+        background: var(--border);
+        border-radius: 3px;
+        margin-top: 8px;
+        overflow: hidden;
+      }
+      .gauge-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.3s;
+      }
+      .pid-params {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .param-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .param-label {
+        width: 30px;
+        font-weight: 600;
+        color: var(--accent);
+      }
+      .param-input {
+        flex: 1;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: var(--text);
+        font-size: 0.9rem;
+        outline: none;
+      }
+      .param-input:focus {
+        border-color: var(--accent);
+      }
+      .param-btn {
+        background: var(--accent);
+        color: #000;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.85rem;
+      }
+      .param-btn:hover {
+        opacity: 0.85;
+      }
+      .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .info-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .info-item:last-child {
+        border: none;
+      }
+      .info-key {
+        color: var(--text2);
+        font-size: 0.8rem;
+      }
+      .info-val {
+        font-weight: 500;
+        font-size: 0.85rem;
+      }
+      .chart-container {
+        height: 250px;
+        position: relative;
+      }
+      #tempChart {
+        width: 100% !important;
+        height: 100% !important;
+      }
+      .preview-banner {
+        background: var(--orange);
+        color: #000;
+        text-align: center;
+        padding: 8px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      .chart-error {
+        color: var(--red);
+        text-align: center;
+        padding: 40px;
+        font-size: 0.9rem;
+      }
+      .sound-toggle {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1.3rem;
+        z-index: 100;
+      }
+      .sound-toggle:hover {
+        border-color: var(--accent);
+      }
+      @media (max-width: 640px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .temp-big {
+          font-size: 3rem;
+        }
+        .pid-output {
+          font-size: 2rem;
+        }
+        .status-bar {
+          gap: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-banner">
+      PREVIEW MODE — Mock data, no ESP32 connected
+    </div>
+
+    <div class="header">
+      <h1>Inkubator Bayi</h1>
+      <p>PID Temperature Control System</p>
+    </div>
+
+    <div class="alarm-banner" id="alarmBanner">
+      PERINGATAN: SUHU MELEBIHI BATAS!
+    </div>
+
+    <div class="status-bar">
+      <div class="status-item">
+        <div class="status-dot dot-green"></div>
+        <span>Connected (mock)</span>
+      </div>
+      <div class="status-item">
+        <div class="status-dot dot-green"></div>
+        <span>Sensor OK</span>
+      </div>
+      <div class="status-item" id="alarmItem" style="display: none">
+        <span class="alarm-on">ALARM</span>
+      </div>
+      <div class="status-item"><span id="uptime">01:23:45</span></div>
+      <div class="status-item"><span>192.168.1.100</span></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Temperature</h3>
+        <div class="temp-display">
+          <span class="temp-big" id="temp" style="color: var(--text)"
+            >36.85</span
+          ><span class="temp-unit">&deg;C</span>
+          <div class="temp-setpoint">
+            Setpoint: <span id="spDisp">37.0</span>&deg;C
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>PID Output</h3>
+        <div class="pid-output" id="pidOut">175.00</div>
+        <div class="pid-label">Error: <span id="errDisp">0.15</span>&deg;C</div>
+      </div>
+
+      <div class="card">
+        <h3>Actuators</h3>
+        <div class="gauge-container">
+          <div class="gauge">
+            <div class="gauge-label">Heater</div>
+            <div class="gauge-value" id="heaterVal">175</div>
+            <div class="gauge-bar">
+              <div
+                class="gauge-fill"
+                id="heaterBar"
+                style="width: 17.1%; background: var(--red)"
+              ></div>
+            </div>
+          </div>
+          <div class="gauge">
+            <div class="gauge-label">Fan</div>
+            <div class="gauge-value" id="fanVal">0</div>
+            <div class="gauge-bar">
+              <div
+                class="gauge-fill"
+                id="fanBar"
+                style="width: 0%; background: var(--accent)"
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>PID Tunings</h3>
+        <div class="pid-params">
+          <div class="param-row">
+            <span class="param-label">Kp</span>
+            <input
+              class="param-input"
+              type="number"
+              step="0.1"
+              id="kpIn"
+              value="2.0"
+            />
+            <button class="param-btn" onclick="applyPID()">Apply</button>
+          </div>
+          <div class="param-row">
+            <span class="param-label">Ki</span>
+            <input
+              class="param-input"
+              type="number"
+              step="0.1"
+              id="kiIn"
+              value="0.5"
+            />
+          </div>
+          <div class="param-row">
+            <span class="param-label">Kd</span>
+            <input
+              class="param-input"
+              type="number"
+              step="0.1"
+              id="kdIn"
+              value="1.0"
+            />
+          </div>
+          <div class="param-row">
+            <span class="param-label">SP</span>
+            <input
+              class="param-input"
+              type="number"
+              step="0.1"
+              id="spIn"
+              value="37.0"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>System Info</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-key">Free Heap</span
+            ><span class="info-val">225000</span>
+          </div>
+          <div class="info-item">
+            <span class="info-key">WiFi RSSI</span
+            ><span class="info-val">-48 dBm</span>
+          </div>
+          <div class="info-item">
+            <span class="info-key">Kp</span><span class="info-val">2.00</span>
+          </div>
+          <div class="info-item">
+            <span class="info-key">Ki</span><span class="info-val">0.50</span>
+          </div>
+          <div class="info-item">
+            <span class="info-key">Kd</span><span class="info-val">1.00</span>
+          </div>
+          <div class="info-item">
+            <span class="info-key">State</span
+            ><span class="info-val">NORMAL</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: 1/-1">
+        <h3>Temperature History</h3>
+        <div class="chart-container"><canvas id="tempChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="sound-toggle" id="soundBtn" title="Toggle Alarm Sound">
+      &#128266;
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script>
+      var chart,
+        tempData = [],
+        spData = [],
+        chartLabels = [];
+      var MAX_PTS = 60;
+      var chartReady = false;
+      var audioCtx = null;
+      var alarmOsc = null;
+      var alarmGain = null;
+      var soundEnabled = true;
+      var alarmActive = false;
+
+      function initAudio() {
+        if (!audioCtx) {
+          try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            alarmGain = audioCtx.createGain();
+            alarmGain.connect(audioCtx.destination);
+            alarmGain.gain.value = 0;
+            alarmOsc = audioCtx.createOscillator();
+            alarmOsc.type = "square";
+            alarmOsc.frequency.value = 2000;
+            alarmOsc.connect(alarmGain);
+            alarmOsc.start();
+          } catch (e) {}
+        }
+        if (audioCtx && audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+      }
+
+      function alarmSoundOn() {
+        if (!soundEnabled || !audioCtx) return;
+        alarmGain.gain.setTargetAtTime(0.15, audioCtx.currentTime, 0.05);
+      }
+
+      function alarmSoundOff() {
+        if (!audioCtx) return;
+        alarmGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+      }
+
+      document
+        .getElementById("soundBtn")
+        .addEventListener("click", function () {
+          initAudio();
+          soundEnabled = !soundEnabled;
+          this.textContent = soundEnabled ? "\u{1F50A}" : "\u{1F507}";
+          if (!soundEnabled) alarmSoundOff();
+          if (alarmActive && soundEnabled) alarmSoundOn();
+        });
+
+      document.addEventListener(
+        "click",
+        function () {
+          initAudio();
+        },
+        { once: true },
+      );
+
+      function initChart() {
+        try {
+          var ctx = document.getElementById("tempChart").getContext("2d");
+          chart = new Chart(ctx, {
+            type: "line",
+            data: {
+              labels: chartLabels,
+              datasets: [
+                {
+                  label: "Suhu Aktual",
+                  data: tempData,
+                  borderColor: "#38bdf8",
+                  backgroundColor: "rgba(56,189,248,0.08)",
+                  fill: true,
+                  tension: 0.3,
+                  pointRadius: 0,
+                  borderWidth: 2,
+                },
+                {
+                  label: "Setpoint",
+                  data: spData,
+                  borderColor: "#f97316",
+                  backgroundColor: "transparent",
+                  borderDash: [6, 3],
+                  tension: 0,
+                  pointRadius: 0,
+                  borderWidth: 2,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              animation: { duration: 0 },
+              scales: {
+                x: { display: false },
+                y: {
+                  min: 30,
+                  max: 42,
+                  ticks: { color: "#94a3b8" },
+                  grid: { color: "#334155" },
+                },
+              },
+              plugins: {
+                legend: {
+                  labels: {
+                    color: "#94a3b8",
+                    usePointStyle: true,
+                    pointStyle: "line",
+                    padding: 16,
+                  },
+                },
+              },
+            },
+          });
+          chartReady = true;
+        } catch (e) {
+          document.getElementById("tempChart").outerHTML =
+            '<div class="chart-error">Chart.js gagal dimuat. Pastikan koneksi internet aktif, atau buka file ini lewat HTTP server.</div>';
+        }
+      }
+
+      function applyPID() {
+        document.getElementById("spDisp").textContent =
+          document.getElementById("spIn").value;
+      }
+
+      function mockUpdate() {
+        var sp = parseFloat(document.getElementById("spIn").value) || 37;
+        var base = sp - 0.15;
+        var noise = (Math.random() - 0.5) * 0.3;
+        var temp = base + noise;
+        var err = sp - temp;
+        var pidOut = Math.max(0, Math.min(1023, err * 50));
+        var heater = Math.round(pidOut);
+        var fan = pidOut < 0 ? Math.round(-pidOut) : 0;
+
+        document.getElementById("temp").textContent = temp.toFixed(2);
+        document.getElementById("spDisp").textContent = sp.toFixed(1);
+        document.getElementById("pidOut").textContent = pidOut.toFixed(2);
+        document.getElementById("errDisp").textContent = err.toFixed(2);
+        document.getElementById("heaterVal").textContent = heater;
+        document.getElementById("fanVal").textContent = fan;
+        document.getElementById("heaterBar").style.width =
+          (heater / 1023) * 100 + "%";
+        document.getElementById("fanBar").style.width =
+          (fan / 1023) * 100 + "%";
+
+        alarmActive = temp > sp + 5;
+        document.getElementById("alarmBanner").className =
+          "alarm-banner" + (alarmActive ? " show" : "");
+        document.getElementById("alarmItem").style.display = alarmActive
+          ? "flex"
+          : "none";
+        document.getElementById("temp").style.color = alarmActive
+          ? "#ef4444"
+          : "var(--text)";
+        if (alarmActive) {
+          alarmSoundOn();
+        } else {
+          alarmSoundOff();
+        }
+
+        if (!chartReady) return;
+        var now = new Date();
+        var ts =
+          String(now.getMinutes()).padStart(2, "0") +
+          ":" +
+          String(now.getSeconds()).padStart(2, "0");
+        chartLabels.push(ts);
+        tempData.push(temp);
+        spData.push(sp);
+        if (chartLabels.length > MAX_PTS) {
+          chartLabels.shift();
+          tempData.shift();
+          spData.shift();
+        }
+        chart.update();
+      }
+
+      window.addEventListener("load", function () {
+        initChart();
+        var sp = parseFloat(document.getElementById("spIn").value) || 37;
+        for (var i = 0; i < 30; i++) {
+          var t = sp - 0.15 + (Math.random() - 0.5) * 0.3;
+          var now = new Date(Date.now() - (30 - i) * 1000);
+          chartLabels.push(
+            String(now.getMinutes()).padStart(2, "0") +
+              ":" +
+              String(now.getSeconds()).padStart(2, "0"),
+          );
+          tempData.push(t);
+          spData.push(sp);
+        }
+        if (chartReady) chart.update();
+        setInterval(mockUpdate, 1000);
+      });
+    </script>
+  </body>
+</html>
