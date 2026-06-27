@@ -1,20 +1,34 @@
 #include <ESPAsyncWebServer.h>
 #include "communication/websocket_handler.h"
 
-void WebSocketHandler::begin(AsyncWebServer& server) {
+void WebSocketHandler::begin(AsyncWebServer& server, SystemData* data, void (*cb)(const PIDTunings&, float)) {
+  sysData_ = data;
+  tuningsCallback_ = cb;
+  ws_.onEvent([this](AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType type, void* arg, uint8_t* data, size_t len) {
+    handleEvent(server, client, type, arg, data, len);
+  });
   server.addHandler(&ws_);
+}
+
+void WebSocketHandler::handleEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType type, void* arg, uint8_t* data, size_t len) {
+  if (type == WS_EVT_DATA) {
+    AwsFrameInfo* info = (AwsFrameInfo*)arg;
+    if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+      String msg = "";
+      for (size_t i = 0; i < len; i++) msg += (char)data[i];
+      processMessage(msg);
+    }
+  }
 }
 
 void WebSocketHandler::broadcast(const SystemData& data) {
   if (ws_.count() == 0) return;
-  
   String json = serializeSystemData(data);
   ws_.textAll(json);
 }
 
 String WebSocketHandler::serializeSystemData(const SystemData& data) {
   JsonDocument doc;
-  
   doc["temperature"] = round(data.sensor.temperature * 100.0f) / 100.0f;
   doc["setpoint"] = round(data.setpoint * 100.0f) / 100.0f;
   doc["heater_pwm"] = data.control.heaterPwm;
@@ -30,44 +44,41 @@ String WebSocketHandler::serializeSystemData(const SystemData& data) {
   doc["sensor_status"] = static_cast<int>(data.sensor.status);
   doc["state"] = static_cast<int>(data.state);
   doc["alarm"] = data.alarm;
-  
   String output;
   serializeJson(doc, output);
   return output;
 }
 
-void WebSocketHandler::onMessage(const String& msg, SystemData& data) {
-  processMessage(msg, data);
-}
-
-void WebSocketHandler::processMessage(const String& msg, SystemData& data) {
+void WebSocketHandler::processMessage(const String& msg) {
+  if (!sysData_) return;
+  
+  Serial.printf("[WS] Pesan: %s\r\n", msg.c_str());
+  
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, msg);
-  
-  if (err) return;
-  
-  if (doc["setpoint"].is<float>()) {
-    float sp = doc["setpoint"].as<float>();
-    if (sp >= Config::TEMP_MIN && sp <= Config::TEMP_MAX) {
-      data.setpoint = sp;
-    }
+  if (err) {
+    Serial.printf("[WS] JSON error: %s\r\n", err.c_str());
+    return;
   }
   
-  if (doc["kp"].is<float>()) {
-    data.pid.kp = doc["kp"].as<float>();
+  PIDTunings t = sysData_->pid;
+  float sp = sysData_->setpoint;
+  bool changed = false;
+
+  if (doc["setpoint"].is<double>()) {
+    sp = doc["setpoint"].as<float>();
+    changed = true;
   }
-  if (doc["ki"].is<float>()) {
-    data.pid.ki = doc["ki"].as<float>();
-  }
-  if (doc["kd"].is<float>()) {
-    data.pid.kd = doc["kd"].as<float>();
+  if (doc["kp"].is<double>()) { t.kp = doc["kp"].as<float>(); changed = true; }
+  if (doc["ki"].is<double>()) { t.ki = doc["ki"].as<float>(); changed = true; }
+  if (doc["kd"].is<double>()) { t.kd = doc["kd"].as<float>(); changed = true; }
+  
+  Serial.printf("[WS] SP=%.1f Kp=%.2f Ki=%.2f Kd=%.2f\r\n", sp, t.kp, t.ki, t.kd);
+  
+  if (changed && tuningsCallback_) {
+    tuningsCallback_(t, sp);
   }
 }
 
-uint32_t WebSocketHandler::getConnectionCount() const {
-  return ws_.count();
-}
-
-void WebSocketHandler::cleanup() {
-  ws_.cleanupClients();
-}
+uint32_t WebSocketHandler::getConnectionCount() const { return ws_.count(); }
+void WebSocketHandler::cleanup() { ws_.cleanupClients(); }

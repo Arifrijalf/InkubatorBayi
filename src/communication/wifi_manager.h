@@ -8,7 +8,8 @@
 
 class WiFiManager {
 public:
-  void begin(const String& ssid, const String& pass);
+  void begin(const String& ssid, const String& pass, const IPAddress& ip, const IPAddress& subnet, const IPAddress& gateway, const IPAddress& dns);
+  void addFallback(const String& ssid, const String& pass);
   void update();
   void disconnect();
   
@@ -22,8 +23,10 @@ private:
   AsyncWebServer* server_ = nullptr;
   bool apMode_ = false;
   uint32_t lastReconnectAttempt_ = 0;
-  
+  String fallbackSsid_;
+  String fallbackPass_;
+
   void startAP();
-  void connectSTA(const String& ssid, const String& pass);
+  void connectSTA(const String& ssid, const String& pass, const IPAddress& ip, const IPAddress& subnet, const IPAddress& gateway, const IPAddress& dns);
   void setupDNS();
 };

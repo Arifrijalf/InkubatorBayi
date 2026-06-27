@@ -1,3 +1,4 @@
+#include <ESPmDNS.h>
 #include <Arduino.h>
 #include "config/system_config.h"
 #include "utils/types.h"
@@ -44,6 +45,8 @@ static void onWiFiUpdate(const String& ssid, const String& pass) {
 void setup() {
   Serial.begin(115200);
   delay(100);
+
+  btStop();
   
   storage.begin();
   
@@ -61,9 +64,19 @@ void setup() {
   
   pid.begin(tunings, setpoint);
   
+  // DHCP setup (Aa)
+  // wifi.begin("Aa", "90909091", INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
+  
+  // Static IP setup (ocillll)
+  IPAddress ip(192, 168, 0, 115);
+  IPAddress subnet(255, 255, 255, 0);
+  IPAddress gateway(192, 168, 0, 1);
+  IPAddress dns(8, 8, 8, 8);
+  
   String ssid, pass;
-  storage.loadWiFiCredentials(ssid, pass);
-  wifi.begin(ssid, pass);
+  storage.loadWiFiCredentials(ssid, pass); 
+  wifi.addFallback("Aa", "90909091"); 
+  wifi.begin(ssid, pass, ip, subnet, gateway, dns);
   
   dashData.setSystemData(&sysData);
   
@@ -71,8 +84,13 @@ void setup() {
   httpServer.setTuningsCallback(onConfigUpdate);
   httpServer.setWiFiCallback(onWiFiUpdate);
   httpServer.begin();
-  
-  ws.begin(httpServer.getServer());
+
+  if (MDNS.begin("inkubator")) {
+    MDNS.addService("http", "tcp", 80);
+    Serial.println("[MDNS] http://inkubator.local");
+  }
+
+  ws.begin(httpServer.getServer(), &sysData, onConfigUpdate);
   
   sysData.state = SystemState::NORMAL;
   
@@ -102,6 +120,7 @@ void loop() {
     sysData.control.error = sysData.setpoint - temp;
     
     if (sensor.isConnected()) {
+      sysData.state = SystemState::NORMAL;
       if (pidOutput > 0) {
         heater.setPWM(static_cast<int>(pidOutput));
         fan.stop();

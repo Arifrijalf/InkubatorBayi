@@ -201,7 +201,7 @@ function initChart(){
     chart=new Chart(ctx,{type:'line',data:{labels:chartLabels,datasets:[
       {label:'Suhu Aktual',data:tempData,borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.08)',fill:true,tension:.3,pointRadius:0,borderWidth:2},
       {label:'Setpoint',data:spData,borderColor:'#f97316',backgroundColor:'transparent',borderDash:[6,3],tension:0,pointRadius:0,borderWidth:2}
-    ]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},scales:{x:{display:false},y:{min:30,max:42,ticks:{color:'#94a3b8'},grid:{color:'#334155'}}},plugins:{legend:{labels:{color:'#94a3b8',usePointStyle:true,pointStyle:'line',padding:16}}}}});
+    ]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},scales:{x:{display:false},y:{ticks:{color:'#94a3b8'},grid:{color:'#334155'}}},plugins:{legend:{labels:{color:'#94a3b8',usePointStyle:true,pointStyle:'line',padding:16}}}}});
     chartReady=true;
   }catch(e){
     document.getElementById('tempChart').outerHTML='<div style="color:#ef4444;text-align:center;padding:40px">Chart.js tidak bisa dimuat</div>';
