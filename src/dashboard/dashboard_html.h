@@ -157,6 +157,7 @@ let alarmOsc=null;
 let alarmGain=null;
 let soundEnabled=true;
 let alarmActive=false;
+let maxTempEver=30;
 
 function initAudio(){
   if(!audioCtx){
@@ -198,10 +199,37 @@ document.addEventListener('click',function(){initAudio();},{once:true});
 function initChart(){
   try{
     const ctx=document.getElementById('tempChart').getContext('2d');
-    chart=new Chart(ctx,{type:'line',data:{labels:chartLabels,datasets:[
-      {label:'Suhu Aktual',data:tempData,borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.08)',fill:true,tension:.3,pointRadius:0,borderWidth:2},
-      {label:'Setpoint',data:spData,borderColor:'#f97316',backgroundColor:'transparent',borderDash:[6,3],tension:0,pointRadius:0,borderWidth:2}
-    ]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},scales:{x:{display:false},y:{ticks:{color:'#94a3b8'},grid:{color:'#334155'}}},plugins:{legend:{labels:{color:'#94a3b8',usePointStyle:true,pointStyle:'line',padding:16}}}}});
+    chart=new Chart(ctx,{
+      type:'line',
+      data:{
+        labels:chartLabels,
+        datasets:[
+          {label:'Suhu Aktual',data:tempData,borderColor:'#38bdf8',backgroundColor:'rgba(56,189,248,0.08)',fill:true,tension:.3,pointRadius:0,borderWidth:2},
+          {label:'Setpoint',data:spData,borderColor:'#f97316',backgroundColor:'transparent',borderDash:[6,3],tension:0,pointRadius:0,borderWidth:2}
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,animation:{duration:0},
+        scales:{x:{display:false},y:{ticks:{color:'#94a3b8'},grid:{color:'#334155'}}},
+        plugins:{
+          legend:{labels:{color:'#94a3b8',usePointStyle:true,pointStyle:'line',padding:16}},
+          tooltip:{
+            mode:'index',intersect:false,
+            backgroundColor:'rgba(15,23,42,0.9)',
+            titleColor:'#94a3b8',
+            bodyColor:'#e2e8f0',
+            padding:10,displayColors:false,
+            callbacks:{
+              label:function(ctx){
+                var v=ctx.raw;
+                if(ctx.dataset.label==='Suhu Aktual'){return'Suhu: '+v.toFixed(1)+' °C';}
+                return ctx.dataset.label+': '+v.toFixed(1);
+              }
+            }
+          }
+        }
+      }
+    });
     chartReady=true;
   }catch(e){
     document.getElementById('tempChart').outerHTML='<div style="color:#ef4444;text-align:center;padding:40px">Chart.js tidak bisa dimuat</div>';
@@ -229,6 +257,8 @@ function connect(){
 }
 
 function update(d){
+  if (d.temperature === undefined || d.setpoint === undefined) return;
+  
   document.getElementById('temp').textContent=d.temperature.toFixed(1);
   document.getElementById('spDisp').textContent=d.setpoint.toFixed(1);
   document.getElementById('pidOut').textContent=d.pid_output.toFixed(1);
@@ -258,8 +288,16 @@ function update(d){
   chartLabels.push(pad(now.getMinutes())+':'+pad(now.getSeconds()));
   tempData.push(d.temperature);
   spData.push(d.setpoint);
-  if(chartLabels.length>MAX_PTS){chartLabels.shift();tempData.shift();spData.shift()}
-  if(chartReady)chart.update();
+if(chartLabels.length>MAX_PTS){chartLabels.shift();tempData.shift();spData.shift()}
+  
+  const currentMax = Math.max(...tempData, ...spData);
+  const currentMin = Math.min(...tempData, ...spData);
+  
+  if(chartReady && chart.options.scales.y) {
+    chart.options.scales.y.max = Math.max(currentMax + 5, 45); 
+    chart.options.scales.y.min = Math.min(currentMin - 5, 30);
+    chart.update('none');
+  }
 }
 
 function sendPID(){

@@ -29,6 +29,10 @@ void HttpServer::setupRoutes() {
   server_.on("/", HTTP_GET, [this](AsyncWebServerRequest* req) {
     req->send(200, "text/html", INDEX_HTML);
   });
+
+  server_.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* req) {
+    req->send(204);
+  });
   
   server_.on("/api/config", HTTP_GET, [this](AsyncWebServerRequest* req) {
     handleGetConfig(req);

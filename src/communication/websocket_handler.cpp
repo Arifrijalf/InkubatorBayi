@@ -11,7 +11,15 @@ void WebSocketHandler::begin(AsyncWebServer& server, SystemData* data, void (*cb
 }
 
 void WebSocketHandler::handleEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType type, void* arg, uint8_t* data, size_t len) {
-  if (type == WS_EVT_DATA) {
+  if (type == WS_EVT_CONNECT) {
+    Serial.printf("[WS] Client terhubung: %u\r\n", client->id());
+    if (sysData_) {
+      String json = serializeSystemData(*sysData_);
+      client->text(json);
+    }
+  } else if (type == WS_EVT_DISCONNECT) {
+    Serial.printf("[WS] Client putus: %u\r\n", client->id());
+  } else if (type == WS_EVT_DATA) {
     AwsFrameInfo* info = (AwsFrameInfo*)arg;
     if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
       String msg = "";
