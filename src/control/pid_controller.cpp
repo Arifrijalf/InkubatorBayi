@@ -48,6 +48,9 @@ void PIDController::setTunings(const PIDTunings& t) {
 
 void PIDController::setSetpoint(float sp) {
   setpoint_ = sp;
+  integral_ = 0.0f;
+  prevError_ = 0.0f;
+  filteredDerivative_ = 0.0f;
 }
 
 void PIDController::setOutputLimits(float min, float max) {

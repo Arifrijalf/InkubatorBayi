@@ -4,6 +4,7 @@
 #include "utils/types.h"
 #include "storage/preferences_store.h"
 #include "sensor/temperature_sensor.h"
+#include "sensor/emergency_switch.h"
 #include "actuator/heater.h"
 #include "actuator/fan.h"
 #include "actuator/buzzer.h"
@@ -11,14 +12,17 @@
 #include "communication/wifi_manager.h"
 #include "communication/websocket_handler.h"
 #include "communication/web_server.h"
+#include "control/auto_tuner.h"
 #include "dashboard/dashboard_data.h"
 
 static PreferencesStore storage;
 static TemperatureSensor sensor;
+static EmergencySwitch emergSwitch;
 static Heater heater;
 static Fan fan;
 static Buzzer buzzer;
 static PIDController pid;
+static AutoTuner tuner;
 static WiFiManager wifi;
 static WebSocketHandler ws;
 static HttpServer httpServer;
@@ -27,6 +31,28 @@ static DashboardData dashData;
 static SystemData sysData;
 static uint32_t lastBroadcast = 0;
 static uint32_t lastUpdate = 0;
+
+static void onTunerCommand(bool start) {
+  if (start) {
+    tuner.begin({
+      .heaterHigh = PWM::Heater::MAX_VALUE,
+      .heaterLow = 0,
+      .hysteresis = 0.5f,
+      .minHalfPeriodMs = 3000,
+      .timeoutMs = 600000,
+      .requiredCycles = 4
+    }, sysData.setpoint);
+    tuner.start();
+    pid.reset(); // Stop PID control during tuning
+    sysData.tunerState = AutoTunerState::RUNNING;
+  } else {
+    tuner.cancel();
+    sysData.tunerState = AutoTunerState::IDLE;
+    sysData.tunerProgress = 0.0f;
+    // Resume PID with existing tunings or default
+    pid.begin(sysData.pid, sysData.setpoint);
+  }
+}
 
 static void onConfigUpdate(const PIDTunings& t, float sp) {
   pid.setTunings(t);
@@ -58,6 +84,7 @@ void setup() {
   sysData.state = SystemState::INIT;
   
   sensor.begin();
+  emergSwitch.begin();
   heater.begin();
   fan.begin();
   buzzer.begin();
@@ -91,6 +118,7 @@ void setup() {
   }
 
   ws.begin(httpServer.getServer(), &sysData, onConfigUpdate);
+  ws.setTunerCallback(onTunerCommand);
   
   sysData.state = SystemState::NORMAL;
   
@@ -101,6 +129,7 @@ void loop() {
   uint32_t now = millis();
   
   sensor.update();
+  emergSwitch.update();
   wifi.update();
   ws.cleanup();
   
@@ -113,29 +142,58 @@ void loop() {
   if (now - lastUpdate >= Config::PID_SAMPLE_TIME_MS) {
     lastUpdate = now;
     
+    sysData.emergency = emergSwitch.isEmergency();
     float temp = sensor.getTemperature();
-    float pidOutput = pid.compute(temp);
     
-    sysData.control.pidResult = pidOutput;
-    sysData.control.error = sysData.setpoint - temp;
-    
-    if (sensor.isConnected()) {
-      sysData.state = SystemState::NORMAL;
-      if (pidOutput > 0) {
-        heater.setPWM(static_cast<int>(pidOutput));
-        fan.stop();
-      } else {
-        heater.stop();
-        fan.setPWM(static_cast<int>(-pidOutput));
-      }
-    } else {
+    if (sysData.emergency) {
       heater.stop();
       fan.setPWM(PWM::Fan::MAX_VALUE);
-      sysData.state = SystemState::SENSOR_FAULT;
+      sysData.state = SystemState::EMERGENCY;
+      sysData.control.heaterPwm = 0;
+      sysData.control.fanPwm = PWM::Fan::MAX_VALUE;
+    } else {
+      float pidOutput;
+      if (tuner.isRunning()) {
+        pidOutput = tuner.update(temp);
+        sysData.tunerProgress = tuner.getProgress();
+        if (tuner.isComplete()) {
+          sysData.tunerState = AutoTunerState::COMPLETE;
+          PIDTunings newTunings = tuner.getTunings();
+          onConfigUpdate(newTunings, sysData.setpoint);
+          sysData.tunerState = AutoTunerState::IDLE;
+          sysData.tunerProgress = 0.0f;
+        }
+      } else {
+        pidOutput = pid.compute(temp);
+      }
+      
+      sysData.control.pidResult = pidOutput;
+      sysData.control.error = sysData.setpoint - temp;
+      
+      if (sensor.isConnected()) {
+        sysData.state = SystemState::NORMAL;
+        if (pidOutput > 0) {
+          heater.setPWM(static_cast<int>(pidOutput));
+        } else {
+          heater.stop();
+        }
+        
+        int fanPwm;
+        if (temp > sysData.setpoint) {
+          fanPwm = PWM::Fan::MAX_VALUE;
+        } else {
+          fanPwm = PWM::Fan::MIN_VALUE;
+        }
+        fan.setPWM(fanPwm);
+      } else {
+        heater.stop();
+        fan.setPWM(PWM::Fan::MAX_VALUE);
+        sysData.state = SystemState::SENSOR_FAULT;
+      }
+      
+      sysData.control.heaterPwm = heater.getCurrentPwm();
+      sysData.control.fanPwm = fan.getCurrentPwm();
     }
-    
-    sysData.control.heaterPwm = heater.getCurrentPwm();
-    sysData.control.fanPwm = fan.getCurrentPwm();
     
     bool alarm = false;
     if (sensor.isConnected() && temp > sysData.setpoint + Config::ALARM_OVERTEMP_OFFSET) {

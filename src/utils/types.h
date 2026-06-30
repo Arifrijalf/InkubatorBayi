@@ -14,7 +14,8 @@ enum class SystemState : uint8_t {
   NORMAL,
   SENSOR_FAULT,
   OVERTEMP,
-  OFFLINE
+  OFFLINE,
+  EMERGENCY
 };
 
 struct PIDTunings {
@@ -36,6 +37,13 @@ struct ControlOutput {
   int fanPwm = 0;
 };
 
+enum class AutoTunerState : uint8_t {
+  IDLE,
+  RUNNING,
+  COMPLETE,
+  ERROR
+};
+
 struct SystemData {
   SensorData sensor;
   ControlOutput control;
@@ -45,5 +53,8 @@ struct SystemData {
   uint32_t freeHeap = 0;
   uint32_t uptime = 0;
   SystemState state = SystemState::INIT;
+  AutoTunerState tunerState = AutoTunerState::IDLE;
+  float tunerProgress = 0.0f;
   bool alarm = false;
+  bool emergency = false;
 };

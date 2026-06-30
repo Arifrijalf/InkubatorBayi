@@ -29,6 +29,10 @@ void WebSocketHandler::handleEvent(AsyncWebSocket* server, AsyncWebSocketClient*
   }
 }
 
+void WebSocketHandler::setTunerCallback(void (*cb)(bool start)) {
+  tunerCallback_ = cb;
+}
+
 void WebSocketHandler::broadcast(const SystemData& data) {
   if (ws_.count() == 0) return;
   String json = serializeSystemData(data);
@@ -51,7 +55,10 @@ String WebSocketHandler::serializeSystemData(const SystemData& data) {
   doc["uptime"] = data.uptime;
   doc["sensor_status"] = static_cast<int>(data.sensor.status);
   doc["state"] = static_cast<int>(data.state);
+  doc["tuner_state"] = static_cast<int>(data.tunerState);
+  doc["tuner_progress"] = round(data.tunerProgress * 100.0f) / 100.0f;
   doc["alarm"] = data.alarm;
+  doc["emergency"] = data.emergency;
   String output;
   serializeJson(doc, output);
   return output;
@@ -80,6 +87,15 @@ void WebSocketHandler::processMessage(const String& msg) {
   if (doc["kp"].is<double>()) { t.kp = doc["kp"].as<float>(); changed = true; }
   if (doc["ki"].is<double>()) { t.ki = doc["ki"].as<float>(); changed = true; }
   if (doc["kd"].is<double>()) { t.kd = doc["kd"].as<float>(); changed = true; }
+  
+  if (doc["action"].is<const char*>()) {
+    String action = doc["action"].as<String>();
+    if (action == "autotune_start" && tunerCallback_) {
+      tunerCallback_(true);
+    } else if (action == "autotune_cancel" && tunerCallback_) {
+      tunerCallback_(false);
+    }
+  }
   
   Serial.printf("[WS] SP=%.1f Kp=%.2f Ki=%.2f Kd=%.2f\r\n", sp, t.kp, t.ki, t.kd);
   

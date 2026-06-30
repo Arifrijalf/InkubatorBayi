@@ -16,6 +16,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .header p{color:var(--text2);font-size:.85rem}
 .alarm-banner{display:none;background:var(--red);color:#fff;text-align:center;padding:14px;border-radius:12px;margin-bottom:16px;font-size:1.1rem;font-weight:700;letter-spacing:2px}
 .alarm-banner.show{display:block;animation:blink 1s infinite}
+.emergency-banner{display:none;background:#dc2626;color:#fff;text-align:center;padding:16px;border-radius:12px;margin-bottom:16px;font-size:1.3rem;font-weight:800;letter-spacing:3px;text-transform:uppercase}
+.emergency-banner.show{display:block;animation:emergencyPulse 0.5s infinite}
+@keyframes emergencyPulse{0%,100%{opacity:1;background:#dc2626}50%{opacity:.85;background:#991b1b}}
 .status-bar{display:flex;justify-content:center;gap:24px;padding:12px;background:var(--card);border-radius:12px;margin-bottom:20px;flex-wrap:wrap}
 .status-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text2)}
 .status-dot{width:8px;height:8px;border-radius:50%}
@@ -53,6 +56,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 #tempChart{width:100%!important;height:100%!important}
 .sound-toggle{position:fixed;bottom:16px;right:16px;background:var(--card);border:1px solid var(--border);border-radius:50%;width:48px;height:48px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.3rem;z-index:100}
 .sound-toggle:hover{border-color:var(--accent)}
+.tune-btn{width:100%;padding:12px;border:none;border-radius:8px;font-weight:600;font-size:.9rem;cursor:pointer;transition:all .3s}
+.tune-btn-start{background:var(--green);color:#000}
+.tune-btn-start:hover{opacity:.85}
+.tune-btn-stop{background:var(--red);color:#fff}
+.tune-btn-stop:hover{opacity:.85}
+.tune-btn:disabled{opacity:.5;cursor:not-allowed}
+.tune-progress{height:6px;background:var(--border);border-radius:3px;margin:12px 0;overflow:hidden}
+.tune-progress-fill{height:100%;background:var(--green);border-radius:3px;transition:width .5s}
+.tune-status{text-align:center;margin-top:12px;font-size:.85rem;color:var(--text2)}
+.tune-result{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:12px}
+.tune-result h4{font-size:.8rem;color:var(--green);margin-bottom:8px;text-transform:uppercase}
+.tune-result .param-row{margin-bottom:4px}
 @media(max-width:640px){.grid{grid-template-columns:1fr}.temp-big{font-size:3rem}.pid-output{font-size:2rem}.status-bar{gap:12px}}
 </style>
 </head>
@@ -63,11 +78,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </div>
 
 <div class="alarm-banner" id="alarmBanner">PERINGATAN: SUHU MELEBIHI BATAS!</div>
+<div class="emergency-banner" id="emergencyBanner">EMERGENCY: SISTEM BERHENTI - HEATER OFF / FAN MAX</div>
 
 <div class="status-bar">
 <div class="status-item"><div class="status-dot" id="wsDot"></div><span id="wsStatus">Connecting...</span></div>
 <div class="status-item"><div class="status-dot dot-green" id="sensorDot"></div><span id="sensorStatus">Sensor OK</span></div>
 <div class="status-item" id="alarmItem" style="display:none"><span class="alarm-on">ALARM</span></div>
+<div class="status-item" id="emergencyItem" style="display:none"><span class="alarm-on" style="color:#dc2626">EMERGENCY</span></div>
 <div class="status-item"><span id="uptime">00:00:00</span></div>
 <div class="status-item"><span id="ip">--</span></div>
 </div>
@@ -127,6 +144,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </div>
 
 <div class="card">
+<h3>Auto PID Tuning</h3>
+<button class="tune-btn tune-btn-start" id="tuneBtn" onclick="startAutoTune()">Start Auto Tune</button>
+<div class="tune-progress" id="tuneProgress" style="display:none"><div class="tune-progress-fill" id="tuneProgressFill" style="width:0%"></div></div>
+<div class="tune-status" id="tuneStatus"></div>
+<div class="tune-result" id="tuneResult" style="display:none"></div>
+</div>
+
+<div class="card">
 <h3>System Info</h3>
 <div class="info-grid">
 <div class="info-item"><span class="info-key">Free Heap</span><span class="info-val" id="heap">--</span></div>
@@ -150,7 +175,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <script>
 let ws,reconTimer,chart,tempData=[],spData=[],chartLabels=[];
 const MAX_PTS=60;
-const stateMap={0:'INIT',1:'NORMAL',2:'SENSOR_FAULT',3:'OVERTEMP',4:'OFFLINE'};
+const stateMap={0:'INIT',1:'NORMAL',2:'SENSOR_FAULT',3:'OVERTEMP',4:'OFFLINE',5:'EMERGENCY'};
 let chartReady=false;
 let audioCtx=null;
 let alarmOsc=null;
@@ -256,6 +281,7 @@ function connect(){
   };
 }
 
+const tunerStateMap={0:'IDLE',1:'RUNNING',2:'COMPLETE',3:'ERROR'};
 function update(d){
   if (d.temperature === undefined || d.setpoint === undefined) return;
   
@@ -278,11 +304,22 @@ function update(d){
   document.getElementById('sensorStatus').textContent=d.sensor_status===0?'Sensor OK':'Sensor Error';
 
   alarmActive=!!d.alarm;
+  const emergencyActive=!!d.emergency;
+
   document.getElementById('alarmBanner').className='alarm-banner'+(alarmActive?' show':'');
   document.getElementById('alarmItem').style.display=alarmActive?'flex':'none';
-  document.getElementById('temp').style.color=alarmActive?'#ef4444':'';
+  document.getElementById('emergencyBanner').className='emergency-banner'+(emergencyActive?' show':'');
+  document.getElementById('emergencyItem').style.display=emergencyActive?'flex':'none';
+  document.getElementById('temp').style.color=alarmActive||emergencyActive?'#ef4444':'';
 
   if(alarmActive){alarmSoundOn()}else{alarmSoundOff()}
+
+  if(emergencyActive){
+    document.getElementById('heaterBar').style.width='0%';
+    document.getElementById('heaterVal').textContent='0';
+    document.getElementById('fanBar').style.width='100%';
+    document.getElementById('fanVal').textContent='1023';
+  }
 
   const now=new Date();
   chartLabels.push(pad(now.getMinutes())+':'+pad(now.getSeconds()));
@@ -298,6 +335,39 @@ if(chartLabels.length>MAX_PTS){chartLabels.shift();tempData.shift();spData.shift
     chart.options.scales.y.min = Math.min(currentMin - 5, 30);
     chart.update('none');
   }
+
+  // Auto-tuner UI update
+  const tunerState = tunerStateMap[d.tuner_state] || 'UNKNOWN';
+  document.getElementById('tuneStatus').textContent = 'Status: ' + tunerState;
+  document.getElementById('tuneProgressFill').style.width = (d.tuner_progress * 100) + '%';
+
+  if (d.tuner_state === 1) { // RUNNING
+    document.getElementById('tuneBtn').textContent = 'Cancel Auto Tune';
+    document.getElementById('tuneBtn').className = 'tune-btn tune-btn-stop';
+    document.getElementById('tuneBtn').onclick = cancelAutoTune;
+    document.getElementById('tuneProgress').style.display = 'block';
+    document.getElementById('tuneResult').style.display = 'none';
+  } else {
+    document.getElementById('tuneBtn').textContent = 'Start Auto Tune';
+    document.getElementById('tuneBtn').className = 'tune-btn tune-btn-start';
+    document.getElementById('tuneBtn').onclick = startAutoTune;
+    document.getElementById('tuneProgress').style.display = 'none';
+    if (d.tuner_state === 2 && d.kp && d.ki && d.kd) { // COMPLETE
+      document.getElementById('tuneResult').style.display = 'block';
+      document.getElementById('tuneResult').innerHTML = `
+        <h4>Tuning Complete!</h4>
+        <div class="param-row">Kp: <span class="info-val">${d.kp.toFixed(2)}</span></div>
+        <div class="param-row">Ki: <span class="info-val">${d.ki.toFixed(2)}</span></div>
+        <div class="param-row">Kd: <span class="info-val">${d.kd.toFixed(2)}</span></div>
+        <button class="param-btn" onclick="applyTunedPID(${d.kp}, ${d.ki}, ${d.kd})">Apply Tuned PID</button>
+      `;
+      document.getElementById('kpIn').value = d.kp.toFixed(2);
+      document.getElementById('kiIn').value = d.ki.toFixed(2);
+      document.getElementById('kdIn').value = d.kd.toFixed(2);
+    } else {
+      document.getElementById('tuneResult').style.display = 'none';
+    }
+  }
 }
 
 function sendPID(){
@@ -308,6 +378,25 @@ function sendPID(){
   if(ws&&ws.readyState===1){
     ws.send(JSON.stringify({kp:kp,ki:ki,kd:kd,setpoint:sp}));
   }
+}
+
+function startAutoTune() {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ action: "autotune_start" }));
+  }
+}
+
+function cancelAutoTune() {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ action: "autotune_cancel" }));
+  }
+}
+
+function applyTunedPID(kp, ki, kd) {
+  document.getElementById('kpIn').value = kp.toFixed(2);
+  document.getElementById('kiIn').value = ki.toFixed(2);
+  document.getElementById('kdIn').value = kd.toFixed(2);
+  sendPID();
 }
 
 window.addEventListener('load',function(){initChart();connect()});
