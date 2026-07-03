@@ -100,8 +100,9 @@ void setup() {
   IPAddress gateway(192, 168, 0, 1);
   IPAddress dns(8, 8, 8, 8);
   
-  String ssid, pass;
-  storage.loadWiFiCredentials(ssid, pass); 
+  String ssid = "ocillll";
+  String pass = "plmoknijb"; 
+  wifi.addFallback2("WIFI@PNP", "");
   wifi.addFallback("Aa", "90909091"); 
   wifi.begin(ssid, pass, ip, subnet, gateway, dns);
   

@@ -26,6 +26,12 @@ void WiFiManager::addFallback(const String& ssid, const String& pass) {
   Serial.printf("[WiFi] Fallback diset: %s\r\n", ssid.c_str());
 }
 
+void WiFiManager::addFallback2(const String& ssid, const String& pass) {
+  fallbackSsid2_ = ssid;
+  fallbackPass2_ = pass;
+  Serial.printf("[WiFi] Fallback2 diset: %s\r\n", ssid.c_str());
+}
+
 void WiFiManager::connectSTA(const String& ssid, const String& pass, const IPAddress& ip, const IPAddress& subnet, const IPAddress& gateway, const IPAddress& dns) {
   if (ip != INADDR_NONE) {
     if (!WiFi.config(ip, gateway, subnet, dns)) {
@@ -50,7 +56,22 @@ void WiFiManager::connectSTA(const String& ssid, const String& pass, const IPAdd
     
     retries = 0;
     while (WiFi.status() != WL_CONNECTED && retries < Config::MAX_WIFI_RETRY) {
-      Serial.printf("[WiFi] Menunggu fallback... (%d/%d)\r\n", retries + 1, Config::MAX_WIFI_RETRY);
+      Serial.printf("[WiFi] Menunggu fallback 1... (%d/%d)\r\n", retries + 1, Config::MAX_WIFI_RETRY);
+      delay(Config::WIFI_RETRY_DELAY_MS);
+      retries++;
+    }
+  }
+  
+  if (WiFi.status() != WL_CONNECTED && fallbackSsid2_.length() > 0) {
+    Serial.printf("[WiFi] Semua gagal, mencoba fallback2 ke %s\r\n", fallbackSsid2_.c_str());
+    WiFi.disconnect();
+    delay(100);
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
+    WiFi.begin(fallbackSsid2_.c_str(), fallbackPass2_.c_str());
+    
+    retries = 0;
+    while (WiFi.status() != WL_CONNECTED && retries < Config::MAX_WIFI_RETRY) {
+      Serial.printf("[WiFi] Menunggu fallback 2... (%d/%d)\r\n", retries + 1, Config::MAX_WIFI_RETRY);
       delay(Config::WIFI_RETRY_DELAY_MS);
       retries++;
     }

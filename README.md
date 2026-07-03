@@ -1,6 +1,9 @@
-# Inkubator Bayi — PID Temperature Monitoring & Control
+# Inkubator Bayi — Neonatal Incubator PID Temperature Controller
 
-ESP32-based neonatal incubator temperature controller with real-time web dashboard.
+ESP32-based neonatal incubator temperature controller with real-time web dashboard, alarm system, auto-tuning, and emergency switch.
+
+[![Build Status](https://img.shields.io/badge/PlatformIO-Ready-green?style=flat-square&logo=platformio)](https://platformio.org)
+[![Temperature Control](https://img.shields.io/badge/PID%20Control-Stable-blue?style=flat-square)](https://github.com/AnomalyResearch/InkubatorBayi)
 
 ## Hardware
 
@@ -17,17 +20,23 @@ ESP32-based neonatal incubator temperature controller with real-time web dashboa
 
 | Component | GPIO |
 |---|---|
-| DS18B20 Data | GPIO 4 |
-| Heater MOSFET | GPIO 16 |
-| Fan MOSFET | GPIO 17 |
+| DS18B20 Data | GPIO 19 |
+| Heater MOSFET | GPIO 21 |
+| Fan MOSFET | GPIO 22 |
+| Buzzer | GPIO 23 |
+| Normal Indicator | GPIO 26 |
+| Emergency Switch | GPIO 27 |
 
 ## Features
 
 - Manual PID implementation (no libraries)
+* [Auto-tuning](docs/AutoTuner.md)
 - Integral anti-windup
 - Derivative filtering
 - Non-blocking sensor reads
 - Sensor fault detection with auto-safety response
+- Emergency physical switch for immediate heater shutdown and fan activation
+- Buzzer alarm for critical events (e.g., sensor fault, emergency switch active)
 - Real-time WebSocket dashboard
 - WiFi STA + AP fallback
 - Persistent storage (ESP32 Preferences)
@@ -36,10 +45,13 @@ ESP32-based neonatal incubator temperature controller with real-time web dashboa
 
 ## Dashboard
 
-- Real-time temperature, setpoint, PID output
+- Real-time temperature, setpoint, PID output, error
 - Heater & Fan PWM gauges
 - Kp / Ki / Kd / Setpoint adjustment
+- Auto-tune start/stop and progress display
 - WiFi RSSI, free heap, uptime
+- Buzzer alarm status
+- Emergency switch status
 - Live temperature history graph
 
 ## Build & Flash
@@ -74,9 +86,9 @@ src/
   config/         pin_config, system_config
   utils/          types (enums, structs)
   storage/        Preferences read/write
-  sensor/         DS18B20 driver
-  actuator/       Heater, Fan PWM
-  control/        PID controller
+  sensor/         DS18B20 driver, emergency switch
+  actuator/       Heater, Fan, Buzzer PWM
+  control/        PID controller, auto-tuner
   communication/  WiFi, WebSocket, HTTP
   dashboard/      Data aggregator, HTML
 ```
