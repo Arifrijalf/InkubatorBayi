@@ -29,8 +29,7 @@ ESP32-based neonatal incubator temperature controller with real-time web dashboa
 
 ## Features
 
-- Manual PID implementation (no libraries)
-* [Auto-tuning](docs/AutoTuner.md)
+- Manual PID implementation
 - Integral anti-windup
 - Derivative filtering
 - Non-blocking sensor reads
