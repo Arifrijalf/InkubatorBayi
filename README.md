@@ -39,7 +39,6 @@ ESP32-based neonatal incubator temperature controller with real-time web dashboa
 - Real-time WebSocket dashboard
 - WiFi STA + AP fallback
 - Persistent storage (ESP32 Preferences)
-- Dark mode glassmorphism UI
 - Live temperature chart (Chart.js)
 
 ## Dashboard
